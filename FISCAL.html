@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>FISCAL Index Karşılaştırıcı</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #eef6f9;
+      padding: 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+    h2 {
+      color: #003366;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    select, input[type="text"] {
+      width: 100%;
+      padding: 6px;
+      margin-top: 5px;
+    }
+    button {
+      margin-top: 15px;
+      padding: 8px 16px;
+      background-color: #005580;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #results {
+      margin-top: 30px;
+    }
+    canvas {
+      margin-top: 30px;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    .score-list {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>FISCAL Index Hesaplayıcı ve Karşılaştırıcı</h2>
+
+  <label>Yöntem Adı</label>
+  <input type="text" id="methodName" placeholder="Örn: Yöntem A">
+
+  <!-- Giriş Seçimleri -->
+  <div id="inputs">
+    <label>F – Fixed Cost</label>
+    <select id="f">
+      <option value="1">Sadece temel ekipmanlarla uygulanabilir</option>
+      <option value="0.8">Düşük maliyetli taşınabilir cihazlar</option>
+      <option value="0.6">Orta düzey cihazlar (GC, HPLC)</option>
+      <option value="0.4">Yüksek teknoloji cihazlar</option>
+      <option value="0.2">Pahalı özelleşmiş sistemler</option>
+      <option value="0">Aşırı yüksek yatırım maliyeti</option>
+    </select>
+
+    <label>I – Incremental Cost</label>
+    <select id="i">
+      <option value="1">Numune başı < 1 USD</option>
+      <option value="0.8">1–3 USD</option>
+      <option value="0.6">3–5 USD</option>
+      <option value="0.4">5–10 USD</option>
+      <option value="0.2">10–20 USD</option>
+      <option value="0">> 20 USD</option>
+    </select>
+
+    <label>S – Scalability</label>
+    <select id="s">
+      <option value="1">≥ 100 numune/saat</option>
+      <option value="0.8">20–100 numune/saat</option>
+      <option value="0.6">5–20 numune/saat</option>
+      <option value="0.4">1–5 numune/saat</option>
+      <option value="0.2">Her analiz > 1 saat</option>
+      <option value="0">Çok yavaş, ölçeklenemez</option>
+    </select>
+
+    <label>C – Consumables</label>
+    <select id="c">
+      <option value="1">Tamamen tekrar kullanılabilir</option>
+      <option value="0.8">Çoğu malzeme tekrar kullanılabilir</option>
+      <option value="0.6">Orta düzeyde sarf</option>
+      <option value="0.4">Tek kullanımlık malzemeler ağırlıklı</option>
+      <option value="0.2">Pahalı ve tek kullanımlık</option>
+      <option value="0">Yoğun sarf kullanımı</option>
+    </select>
+
+    <label>A – Availability</label>
+    <select id="a">
+      <option value="1">Yerel pazarda kolay temin</option>
+      <option value="0.8">Küresel yaygın</option>
+      <option value="0.6">Özel ama temin edilebilir</option>
+      <option value="0.4">Nadir veya özel sentezli</option>
+      <option value="0.2">Uzun tedarik süresi</option>
+      <option value="0">Temin edilmesi zor</option>
+    </select>
+
+    <label>L – Lifecycle Impact</label>
+    <select id="l">
+      <option value="1">Bakım gerekmez, çevreci</option>
+      <option value="0.8">Kolay bakım</option>
+      <option value="0.6">Orta düzey eğitim ve bakım</option>
+      <option value="0.4">Uzmanlık gerekir</option>
+      <option value="0.2">Yüksek servis/atık maliyeti</option>
+      <option value="0">Ciddi servis ve atık riski</option>
+    </select>
+  </div>
+
+  <button onclick="addMethod()">Yöntem Ekle</button>
+  <button onclick="resetPage()" style="background-color: #c0392b;">Tümünü Temizle</button>
+  <button onclick="downloadPDF()">PDF İndir</button>
+
+  <div id="results">
+    <canvas id="fiscalChart" width="400" height="300"></canvas>
+    <div class="score-list" id="scoreList"></div>
+  </div>
+
+  <script>
+    let chart;
+    let methods = [];
+    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'];
+
+    function addMethod() {
+      const name = document.getElementById("methodName").value || `Yöntem ${methods.length + 1}`;
+      const f = parseFloat(document.getElementById("f").value);
+      const i = parseFloat(document.getElementById("i").value);
+      const s = parseFloat(document.getElementById("s").value);
+      const c = parseFloat(document.getElementById("c").value);
+      const a = parseFloat(document.getElementById("a").value);
+      const l = parseFloat(document.getElementById("l").value);
+      const avg = ((f + i + s + c + a + l) / 6).toFixed(2);
+
+      methods.push({ name, data: [f, i, s, c, a, l], avg });
+
+      updateChart();
+      updateScores();
+      document.getElementById("methodName").value = "";
+    }
+
+    function updateChart() {
+      const data = {
+        labels: ['Fixed Cost', 'Incremental', 'Scalability', 'Consumables', 'Availability', 'Lifecycle'],
+        datasets: methods.map((m, i) => ({
+          label: m.name,
+          data: m.data,
+          borderColor: colors[i % colors.length],
+          backgroundColor: colors[i % colors.length] + "44", // transparan arka plan
+          borderWidth: 2
+        }))
+      };
+
+      const config = {
+        type: 'radar',
+        data: data,
+        options: {
+          scales: {
+            r: {
+              suggestedMin: 0,
+              suggestedMax: 1
+            }
+          }
+        }
+      };
+
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('fiscalChart'), config);
+    }
+
+    function updateScores() {
+      let html = `<h3>Yöntem Skorları</h3><ul>`;
+      for (const m of methods) {
+        let yorum = m.avg >= 0.8 ? "💚 Mükemmel" : m.avg >= 0.6 ? "💛 Uygun" : m.avg >= 0.4 ? "🧡 Sınırlı" : "❤️ Zayıf";
+        html += `<li><strong>${m.name}:</strong> ${m.avg} → ${yorum}</li>`;
+      }
+      html += `</ul>`;
+      document.getElementById("scoreList").innerHTML = html;
+    }
+
+    function downloadPDF() {
+      const element = document.getElementById("results");
+      const opt = {
+        margin: 5,
+        filename: 'FISCAL_Index.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().from(element).set(opt).save();
+    }
+	
+	function resetPage() {
+		// Tüm verileri temizle
+		methods = [];
+
+		// Grafik varsa yok et
+		if (chart) chart.destroy();
+
+		// Skor listesini ve girişleri temizle
+		document.getElementById("scoreList").innerHTML = "";
+		document.getElementById("methodName").value = "";
+
+		// Seçimleri ilk seçeneğe sıfırla
+		const selects = document.querySelectorAll("#inputs select");
+		selects.forEach(sel => sel.selectedIndex = 0);
+	}
+  </script>
+
+</body>
+</html>
